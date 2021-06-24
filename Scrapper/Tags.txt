@@ -1,0 +1,17 @@
+Tags:
+
+"Indie": 492
+"Ação": 19
+"Casual": 597
+"Aventura": 21
+"RPG": 122
+"Atmosférico": 41666
+"2D": 3871
+"Boa Trama": 1742
+"Quebra-cabeças": 1664
+"Um Jogador": 4182
+"Estratégia": 9
+"Simulação": 599
+"Multijogador": 3859
+"Arcade": 1773
+"Gráficos Pixelados": 3964
