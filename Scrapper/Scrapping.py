@@ -1,4 +1,5 @@
 from asyncio.windows_events import NULL
+from typing import Counter
 from aiohttp import ClientSession
 import aiomultiprocess
 from bs4 import BeautifulSoup
@@ -29,6 +30,10 @@ tags = {
 
 tagged_games = pd.DataFrame()
 
+info_list = ([], [], [], [])
+
+Counter = 1
+
 
 async def get_html(tag, page=1):
     html_body = ""
@@ -39,7 +44,7 @@ async def get_html(tag, page=1):
     return html_body
 
 
-def collect_data(html_body, update_df=False, info_list=NULL, tag=NULL):
+def collect_data(html_body, update_df=False, tag=None):
     #make_ref_file('IndiePage', html_body)
     soup = BeautifulSoup(html_body, "html.parser")
     html_parsered = soup.find_all(
@@ -70,23 +75,26 @@ def collect_data(html_body, update_df=False, info_list=NULL, tag=NULL):
 
 
 # Por algum motivo, não está coletando o valor total que deveria
-async def loop_through(tag, total_games, info_list):
-    pages = int(total_games)
-    for page in range(0, pages, 100):
-        html_body = await get_html(tag, page)
-        collect_data(html_body, True, info_list, tag)
+async def loop_through(tuple_info):
+    tag, page = tuple_info
+    html_body = await get_html(tag, page)
+    collect_data(html_body, True, tag)
 
 
 async def make_dic_complete(tag):
-    info_list = ([], [], [], [])
     html_body = await get_html(tag)
-    num_of_games = collect_data(html_body)
-    print(tag)
-    async with Pool() as pool:
-        await pool.starmap(loop_through, [(tag, num_of_games, info_list)])
+    try:
+        num_of_games = collect_data(html_body)
+        print(tag)
+        async with Pool(processes=3) as pool:
+            await pool.map(loop_through, [(tag, page) for page in range(0, int(num_of_games), 100)])
+            pool.terminate()
+            await pool.join()
         pool.terminate()
-        await pool.join()
-    return info_list
+    except:
+        global Counter
+        make_ref_file('HTML Error' + Counter, html_body)
+        Counter += 1
 
 
 async def make_dic_complete_analyses(tag):
