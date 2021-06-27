@@ -15,7 +15,9 @@ import pandas as pd
 # Adicionar a tag de terror
 tags = {
     "Indie": 492,
+    "Ação": 19,
     "Casual": 597,
+    "Aventura": 21,
     "RPG": 122,
     "Atmosférico": 4166,
     "2D": 3871,
@@ -26,13 +28,8 @@ tags = {
     "Simulação": 599,
     "Multijogador": 3859,
     "Arcade": 1773,
-    "Gráficos Pixelados": 3964
-}
-
-tags_2 = {
-    "Indie": 492,
-    "Casual": 597,
-    "RPG": 122
+    "Gráficos Pixelados": 3964,
+    "Terror": 1667
 }
 
 info_list = []
@@ -52,6 +49,7 @@ async def get_html(tag, page=1):
 
 
 def collect_data(html_body, update_df=False, tag=None, info_list=None):
+    s_info = ''
     soup = BeautifulSoup(html_body, "html.parser")
     html_parsered = soup.find_all(
         "a", class_=lambda value: value and value.startswith('search_result_row ds_collapse_flag'))
@@ -81,15 +79,11 @@ def collect_data(html_body, update_df=False, tag=None, info_list=None):
                     price = 'Free to Play'
             else:
                 price = 'Releasing Soon'
-
-            info_list.append(name)
-            info_list.append(image)
-            info_list.append(price)
-            info_list.append(tag)
+            s_info = f'{name}(.){image}(.){price}(.){tag}'
+            info_list.append(s_info)
     return num_of_games
 
 
-# Por algum motivo, não está coletando o valor total que deveria
 async def loop_through(tuple_info):
     tag, page, info_list = tuple_info
     html_body = await get_html(tag, page)
@@ -116,16 +110,6 @@ async def make_dic_complete(tuple_info):
         Counter += 1
 
 
-async def make_dic_complete_analyses(tuple_info):
-    tag, info_list = tuple_info
-    html_body = await get_html(tag)
-    num_of_games = collect_data(html_body)
-    rest = int(num_of_games) % 100
-    limit = int((int(num_of_games) - rest)/4)
-    for page in range(0, limit, 100):
-        await loop_through((tag, page, info_list))
-
-
 def make_ref_file(name_file, html_body):
     output_dir = pathlib.Path().resolve() / "referência"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -149,35 +133,22 @@ if __name__ == '__main__':
     with Manager() as manager:
         info_list = manager.list()
         t1 = time.perf_counter()
-        asyncio.run(
-            main_analyses(
-                tags_2, info_list
+        keys = list(tags.keys())
+        for key in range(0, len(keys)-4, 4):
+            asyncio.run(
+                main_analyses(
+                    [keys[key], keys[key+1], keys[key+2]], info_list
+                )
             )
-        )
-        unpack_info = (
-            [info_list[i] for i in range(0, len(info_list), 4)],
-            [info_list[i] for i in range(1, len(info_list), 4)],
-            [info_list[i] for i in range(2, len(info_list), 4)],
-            [info_list[i] for i in range(3, len(info_list), 4)]
-        )
-        # desempacotar as informações de uma lista.
-        for position in range(len(unpack_info[0])):
-            if unpack_info[2][position]:
-                tagged_games = tagged_games.append(
-                    {
-                        'Games': unpack_info[0][position],
-                        'Image': unpack_info[1][position],
-                        'Price': unpack_info[2][position],
-                        'Tag': unpack_info[3][position]
-                    }, ignore_index=True)
-            elif unpack_info[2][position] == None:
-                tagged_games = tagged_games.append(
-                    {
-                        'Games': unpack_info[0][position],
-                        'Image': unpack_info[1][position],
-                        'Price': "Nan",
-                        'Tag': "Nan"
-                    }, ignore_index=True)
+        unpack_info = [info_list[i] for i in range(len(info_list))]
+        for package in unpack_info:
+            tagged_games = tagged_games.append(
+                {
+                    'Games': package.split('(.)')[0],
+                    'Image': package.split('(.)')[1],
+                    'Price': package.split('(.)')[2],
+                    'Tag': package.split('(.)')[3]
+                }, ignore_index=True)
         print(tagged_games.head())
         tagged_games.to_csv(
             r'C:\Users\Bia\Documents\Projetos Python\Vintometro\Test_df\Test df.csv')  # Não consigo abrir o arquivo csv para avaliar os dados
