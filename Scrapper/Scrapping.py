@@ -1,20 +1,21 @@
 from asyncio.windows_events import NULL
+from logging import info
 from typing import Counter
 from aiohttp import ClientSession
 import aiomultiprocess
 from bs4 import BeautifulSoup
 import pathlib
 import asyncio
-from aiomultiprocess import Pool, pool
+from aiomultiprocess import Pool
+from multiprocessing import Manager
 import time
 from math import *
 import pandas as pd
 
+# Adicionar a tag de terror
 tags = {
     "Indie": 492,
-    "Ação": 19,
     "Casual": 597,
-    "Aventura": 21,
     "RPG": 122,
     "Atmosférico": 4166,
     "2D": 3871,
@@ -28,86 +29,101 @@ tags = {
     "Gráficos Pixelados": 3964
 }
 
-tagged_games = pd.DataFrame()
+tags_2 = {
+    "Indie": 492,
+    "Casual": 597,
+    "RPG": 122
+}
 
-info_list = ([], [], [], [])
+info_list = []
 
 Counter = 1
+
+tagged_games = pd.DataFrame()
 
 
 async def get_html(tag, page=1):
     html_body = ""
-    itens = f'https://store.steampowered.com/search/?sort_by=Released_DESC&tags={tags[tag]}&query&start={page}&count=100'
+    itens = f'https://store.steampowered.com/search/?tags={tags[tag]}&query&start={page}&count=100'
     async with ClientSession() as session:
         async with session.get(itens) as response:
             html_body = await response.read()
     return html_body
 
 
-def collect_data(html_body, update_df=False, tag=None):
-    #make_ref_file('IndiePage', html_body)
+def collect_data(html_body, update_df=False, tag=None, info_list=None):
     soup = BeautifulSoup(html_body, "html.parser")
     html_parsered = soup.find_all(
         "a", class_=lambda value: value and value.startswith('search_result_row ds_collapse_flag'))
     num_of_games_string = soup.find(
-        'div', id='search_results_filtered_warning').text[1:]  # Rever essa informação, vindo errado.
+        'div', id='search_results_filtered_warning').text[1:]
     num_of_games = num_of_games_string.split('results')[0]
     num_of_games = num_of_games.replace(',', '')
     if update_df != False:
         for infos in html_parsered:
             name = infos.find(class_='title').text
             image = infos.find('img')['src']
-            try:
-                price_analyse = infos.find(
-                    class_='col search_price discounted responsive_secondrow').text
-                if len(price_analyse) == 1:
-                    price = 'R$' + price_analyse[2:-20].split('R$ ')
+            price_analyse_discount = infos.find('div',
+                                                class_='col search_price discounted responsive_secondrow')
+            full_price_analyse = infos.find('div',
+                                            class_='col search_price responsive_secondrow')
+            if price_analyse_discount is not None:
+                if 'Free' not in price_analyse_discount.text:
+                    price = 'R$' + \
+                        price_analyse_discount.text[2:-20].split('R$ ')[1]
                 else:
-                    price = 'R$' + price_analyse[2:-20].split('R$ ')[1]
-                # Usar um .split("R$ ") e tratar como uma lista que o primeiro argumento é o preço cheio, enquanto o segundo, a promoção.
-            except:
+                    price = "Free to Play"
+            elif full_price_analyse is not None and price_analyse_discount is None:
+                if 'R$' in full_price_analyse.text:
+                    price = 'R$' + \
+                        full_price_analyse.text[2:-20].split('R$ ')[1]
+                else:
+                    price = 'Free to Play'
+            else:
                 price = 'Releasing Soon'
-            info_list[0].append(name)
-            info_list[1].append(image)
-            info_list[2].append(price)
-            info_list[3].append(tag)
+
+            info_list.append(name)
+            info_list.append(image)
+            info_list.append(price)
+            info_list.append(tag)
     return num_of_games
 
 
 # Por algum motivo, não está coletando o valor total que deveria
 async def loop_through(tuple_info):
-    tag, page = tuple_info
+    tag, page, info_list = tuple_info
     html_body = await get_html(tag, page)
-    collect_data(html_body, True, tag)
+    collect_data(html_body, True, tag, info_list)
 
 
-async def make_dic_complete(tag):
+async def make_dic_complete(tuple_info):
+    tag, info_list = tuple_info
     html_body = await get_html(tag)
     try:
         num_of_games = collect_data(html_body)
+        rest = int(num_of_games) % 100
+        limit = int((int(num_of_games) - rest)/4)
+        print(limit)
         print(tag)
-        async with Pool(processes=3) as pool:
-            await pool.map(loop_through, [(tag, page) for page in range(0, int(num_of_games), 100)])
+        async with Pool() as pool:
+            await pool.map(loop_through, [(tag, page, info_list) for page in range(0, limit, 100)])
             pool.terminate()
             await pool.join()
         pool.terminate()
     except:
         global Counter
-        make_ref_file('HTML Error' + Counter, html_body)
+        make_ref_file('HTML Error' + str(Counter), html_body)
         Counter += 1
 
 
-async def make_dic_complete_analyses(tag):
-    info_list = ([], [], [])
+async def make_dic_complete_analyses(tuple_info):
+    tag, info_list = tuple_info
     html_body = await get_html(tag)
     num_of_games = collect_data(html_body)
-    print(num_of_games)
-    await loop_through(tag, num_of_games, info_list)
-    tagged_games['Games'] = info_list[0]
-    tagged_games['Image'] = info_list[1]
-    tagged_games['Price'] = info_list[2]
-    tagged_games.to_csv(
-        r'C:\Users\Bia\Documents\Projetos Python\Vintometro\Test_df\Test df.csv')
+    rest = int(num_of_games) % 100
+    limit = int((int(num_of_games) - rest)/4)
+    for page in range(0, limit, 100):
+        await loop_through((tag, page, info_list))
 
 
 def make_ref_file(name_file, html_body):
@@ -117,33 +133,54 @@ def make_ref_file(name_file, html_body):
     output_file.write_text(html_body.decode(), encoding="utf-8")
 
 
-async def main(tags):
+async def main(tags, info_list):
     async with Pool(processes=3) as pool:
-        await pool.map(make_dic_complete, tags)
+        await pool.map(make_dic_complete, [(tag, info_list) for tag in tags])
         pool.terminate()
         await pool.join()
 
+
+async def main_analyses(tags, info_list):
+    for tag in tags:
+        await make_dic_complete((tag, info_list))
+
+
 if __name__ == '__main__':
-    t1 = time.perf_counter()
-    asyncio.run(
-        main(
-            list(
-                tags.keys()
+    with Manager() as manager:
+        info_list = manager.list()
+        t1 = time.perf_counter()
+        asyncio.run(
+            main_analyses(
+                tags_2, info_list
             )
         )
-    )
-    t2 = time.perf_counter()
-    print(t2-t1, "\n", tagged_games)
-"""
-t1 = time.perf_counter()
-asyncio.run(make_dic_complete_analyses('Indie'))
-t2 = time.perf_counter()
-print(t2-t1)
+        unpack_info = (
+            [info_list[i] for i in range(0, len(info_list), 4)],
+            [info_list[i] for i in range(1, len(info_list), 4)],
+            [info_list[i] for i in range(2, len(info_list), 4)],
+            [info_list[i] for i in range(3, len(info_list), 4)]
+        )
+        # desempacotar as informações de uma lista.
+        for position in range(len(unpack_info[0])):
+            if unpack_info[2][position]:
+                tagged_games = tagged_games.append(
+                    {
+                        'Games': unpack_info[0][position],
+                        'Image': unpack_info[1][position],
+                        'Price': unpack_info[2][position],
+                        'Tag': unpack_info[3][position]
+                    }, ignore_index=True)
+            elif unpack_info[2][position] == None:
+                tagged_games = tagged_games.append(
+                    {
+                        'Games': unpack_info[0][position],
+                        'Image': unpack_info[1][position],
+                        'Price': "Nan",
+                        'Tag': "Nan"
+                    }, ignore_index=True)
+        print(tagged_games.head())
+        tagged_games.to_csv(
+            r'C:\Users\Bia\Documents\Projetos Python\Vintometro\Test_df\Test df.csv')  # Não consigo abrir o arquivo csv para avaliar os dados
 
-t1 = time.perf_counter()
-games_Indie = asyncio.run(main("Indie"))
-t2 = time.perf_counter()
-print(t2-t1)
-games_Aventura = asyncio.run(main('Aventura'))
-t3 = time.perf_counter()
-print(t3-t2)"""
+        t2 = time.perf_counter()
+        print(t2-t1)
