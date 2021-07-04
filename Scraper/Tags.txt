@@ -1,0 +1,80 @@
+tags = {
+    "Indie": 492,
+    "Ação": 19,
+    "Casual": 597,
+    "Aventura": 21,
+    "RPG": 122,
+    "Atmosférico": 4166,
+    "2D": 3871,
+    "Boa Trama": 1742,
+    "Quebra-cabeças": 1664,
+    "Um Jogador": 4182,
+    "Estratégia": 9,
+    "Simulação": 599,
+    "Multijogador": 3859,
+    "Arcade": 1773,
+    "Gráficos Pixelados": 3964
+}
+
+"""t1 = time.perf_counter()
+asyncio.run(make_dic_complete_analyses('Indie'))
+tagged_games['Games'] = info_list[0]
+tagged_games['Image'] = info_list[1]
+tagged_games['Price'] = info_list[2]
+tagged_games['Tag'] = info_list[3]
+t2 = time.perf_counter()
+print(t2-t1)
+
+t1 = time.perf_counter()
+games_Indie = asyncio.run(main("Indie"))
+t2 = time.perf_counter()
+print(t2-t1)
+games_Aventura = asyncio.run(main('Aventura'))
+t3 = time.perf_counter()
+print(t3-t2)"""
+
+list(
+                tags.keys()
+            )
+
+https://stackoverflow.com/questions/19070638/python-multiprocessing-ioerror-errno-232-the-pipe-is-being-closed
+
+if __name__ == '__main__':
+    with Manager() as manager:
+        info_list = manager.list()
+        t1 = time.perf_counter()
+        asyncio.run(
+            main_analyses(
+                tags_2, info_list
+            )
+        )
+        unpack_info = (
+            [info_list[i] for i in range(0, len(info_list), 4)],
+            [info_list[i] for i in range(1, len(info_list), 4)],
+            [info_list[i] for i in range(2, len(info_list), 4)],
+            [info_list[i] for i in range(3, len(info_list), 4)]
+        )
+        # desempacotar as informações de uma lista.
+        for position in range(len(unpack_info[0])):
+            if unpack_info[2][position]:
+                tagged_games = tagged_games.append(
+                    {
+                        'Games': unpack_info[0][position],
+                        'Image': unpack_info[1][position],
+                        'Price': unpack_info[2][position],
+                        'Tag': unpack_info[3][position]
+                    }, ignore_index=True)
+            elif unpack_info[2][position] == None:
+                tagged_games = tagged_games.append(
+                    {
+                        'Games': unpack_info[0][position],
+                        'Image': unpack_info[1][position],
+                        'Price': "Nan",
+                        'Tag': "Nan"
+                    }, ignore_index=True)
+        print(tagged_games.head())
+        tagged_games.to_csv(
+            r'C:\Users\Bia\Documents\Projetos Python\Vintometro\Test_df\Test df.csv')  # Não consigo abrir o arquivo csv para avaliar os dados
+
+        t2 = time.perf_counter()
+        print(t2-t1)
