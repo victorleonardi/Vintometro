@@ -11,6 +11,7 @@ from multiprocessing import Manager
 import time
 from math import *
 import pandas as pd
+import resource
 
 # Adicionar a tag de terror
 tags = {
@@ -160,8 +161,7 @@ def scrape() -> pd.DataFrame:
             tagged_games, copy=False, how='inner', on='Game')
         tagged_games.drop_duplicates('Game', inplace=True)
         tagged_games.Tag.apply(str)
-        tagged_games.to_csv(
-            r'C:\Users\Bia\Documents\Projetos Python\Vintometro\Data_Storage\Data_Storage_df.csv')
+        tagged_games.to_csv(resource.directory)
         t2 = time.perf_counter()
         print(t2-t1)
 # Preciso definir os tipos de colunas!
