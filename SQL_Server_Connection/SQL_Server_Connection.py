@@ -10,5 +10,5 @@ def save_dataframe_as_table(df: pd.DataFrame, table_name: str):
     engine = sqlalchemy.create_engine(
         'mssql+pyodbc://DESKTOP-SCIEEGO\Bia:@Price_DataBase101')
     conn = engine.connect()
-    df.to_sql(table_name, engine, if_exists='replace', index=False)
+    df.to_sql(table_name, engine, if_exists='append', index=False)
     print('Values Inserted')
